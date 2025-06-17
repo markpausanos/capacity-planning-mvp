@@ -29,7 +29,7 @@ export async function login(user: AuthRequest): Promise<{ user: User }> {
 	return await getUser();
 }
 
-export async function signup(user: AuthRequest): Promise<{ user: User }> {
+export async function signup(user: AuthRequest) {
 	const supabase = await createClient();
 	const { error } = await supabase.auth.signUp({
 		email: user.email,
@@ -39,8 +39,6 @@ export async function signup(user: AuthRequest): Promise<{ user: User }> {
 	if (error) {
 		throw error;
 	}
-
-	return await getUser();
 }
 
 export async function logout() {
