@@ -21,7 +21,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { createProjectClient } from '@/actions/clients';
-import { X } from 'lucide-react';
 
 const clientSchema = z.object({
 	name: z.string().min(1, 'Client name is required'),
