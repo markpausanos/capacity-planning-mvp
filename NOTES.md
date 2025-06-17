@@ -1,5 +1,14 @@
 # Capacity Planning MVP - Development Notes
 
+## Setting Up
+
+Ensure you have the following environment variables set in your .env.local file:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+```
+
 ## Time Spent
 
 **Total Development Time: 225 minutes (3 hours 45 minutes)**
