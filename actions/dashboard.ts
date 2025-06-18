@@ -8,6 +8,7 @@ import {
 	BenchConsultant,
 } from '@/types/dashboard';
 import { revalidatePath } from 'next/cache';
+import { getUser } from './auth';
 
 // Get Monday of current week
 function getWeekStart(date: Date): Date {
@@ -32,6 +33,11 @@ function getWeeksBetween(startDate: Date, endDate: Date): number {
 export async function getDashboardData(): Promise<DashboardData> {
 	try {
 		const supabase = await createClient();
+		const { user } = await getUser();
+
+		if (!user) {
+			throw new Error('Unauthorized: User not authenticated');
+		}
 
 		// Calculate 12-week period starting from current week
 		const today = new Date();
@@ -44,10 +50,11 @@ export async function getDashboardData(): Promise<DashboardData> {
 			weeks.push(weekDate);
 		}
 
-		// Get all consultants with timeout
+		// Get all consultants with timeout - filtered by user
 		const consultantsPromise = supabase
 			.from('consultants')
 			.select('*')
+			.eq('user_id', user.id)
 			.order('name');
 
 		const timeoutPromise = new Promise((_, reject) =>
@@ -64,7 +71,7 @@ export async function getDashboardData(): Promise<DashboardData> {
 			throw new Error('Failed to fetch consultants');
 		}
 
-		// Get all allocations that overlap with our 12-week period with timeout
+		// Get all allocations that overlap with our 12-week period with timeout - filtered by user
 		const periodStart = weeks[0].toISOString().split('T')[0];
 		const periodEnd = weeks[11].toISOString().split('T')[0];
 
@@ -82,6 +89,7 @@ export async function getDashboardData(): Promise<DashboardData> {
 			)
 		`
 			)
+			.eq('user_id', user.id)
 			.or(`start_date.lte.${periodEnd},end_date.gte.${periodStart}`);
 
 		const allocationsTimeoutPromise = new Promise((_, reject) =>

@@ -7,9 +7,15 @@ import {
 	Allocation,
 } from '@/types/allocation';
 import { revalidatePath } from 'next/cache';
+import { getUser } from './auth';
 
 export async function getAllocations(): Promise<Allocation[]> {
 	const supabase = await createClient();
+	const { user } = await getUser();
+
+	if (!user) {
+		throw new Error('Unauthorized: User not authenticated');
+	}
 
 	const { data, error } = await supabase
 		.from('allocations')
@@ -23,6 +29,7 @@ export async function getAllocations(): Promise<Allocation[]> {
 			)
 		`
 		)
+		.eq('user_id', user.id)
 		.order('start_date', { ascending: false });
 
 	if (error) {
@@ -44,6 +51,11 @@ export async function createAllocation(
 	data: CreateAllocationData
 ): Promise<void> {
 	const supabase = await createClient();
+	const { user } = await getUser();
+
+	if (!user) {
+		throw new Error('Unauthorized: User not authenticated');
+	}
 
 	// Validate date range
 	const startDate = new Date(data.start_date);
@@ -58,7 +70,13 @@ export async function createAllocation(
 		throw new Error('Hours per week must be greater than 0');
 	}
 
-	const { error } = await supabase.from('allocations').insert([data]);
+	// Add user_id to the data
+	const allocationData = {
+		...data,
+		user_id: user.id,
+	};
+
+	const { error } = await supabase.from('allocations').insert([allocationData]);
 
 	if (error) {
 		console.error('Error creating allocation:', error);
@@ -73,6 +91,11 @@ export async function updateAllocation(
 	data: UpdateAllocationData
 ): Promise<void> {
 	const supabase = await createClient();
+	const { user } = await getUser();
+
+	if (!user) {
+		throw new Error('Unauthorized: User not authenticated');
+	}
 
 	// Validate date range if both dates are provided
 	if (data.start_date && data.end_date) {
@@ -92,7 +115,8 @@ export async function updateAllocation(
 	const { error } = await supabase
 		.from('allocations')
 		.update(data)
-		.eq('id', id);
+		.eq('id', id)
+		.eq('user_id', user.id);
 
 	if (error) {
 		console.error('Error updating allocation:', error);
@@ -104,8 +128,17 @@ export async function updateAllocation(
 
 export async function deleteAllocation(id: string): Promise<void> {
 	const supabase = await createClient();
+	const { user } = await getUser();
 
-	const { error } = await supabase.from('allocations').delete().eq('id', id);
+	if (!user) {
+		throw new Error('Unauthorized: User not authenticated');
+	}
+
+	const { error } = await supabase
+		.from('allocations')
+		.delete()
+		.eq('id', id)
+		.eq('user_id', user.id);
 
 	if (error) {
 		console.error('Error deleting allocation:', error);
