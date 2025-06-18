@@ -17,9 +17,9 @@ import { login } from '@/actions/auth';
 import { toast } from 'sonner';
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { BeatLoader } from 'react-spinners';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 
 const loginSchema = z.object({
 	email: z.string().email({ message: 'Invalid email address' }),
@@ -44,10 +44,15 @@ export default function LoginForm() {
 		setIsLoading(true);
 
 		try {
-			await login(data);
+			const response = await login(data);
+			console.log(response);
+
+			if (response.user) {
+				router.push('/dashboard');
+			}
 		} catch (error) {
 			if (error instanceof Error) {
-				toast.error('Failed to login');
+				toast.error(error.message);
 			} else {
 				toast.error('An unknown error occurred');
 			}
@@ -76,6 +81,7 @@ export default function LoginForm() {
 									<Input
 										placeholder="Enter your email"
 										type="email"
+										data-testid="email-input"
 										{...field}
 									/>
 								</FormControl>
@@ -94,6 +100,7 @@ export default function LoginForm() {
 									<Input
 										type="password"
 										placeholder="Enter your password"
+										data-testid="password-input"
 										{...field}
 									/>
 								</FormControl>
@@ -109,7 +116,12 @@ export default function LoginForm() {
 					</Link>
 
 					{/* Submit Button */}
-					<Button disabled={isLoading} type="submit" className="w-full">
+					<Button
+						disabled={isLoading}
+						type="submit"
+						className="w-full"
+						data-testid="login-button"
+					>
 						{!isLoading && <p>Sign In</p>}
 						{isLoading && <BeatLoader size={8} color="white" />}
 					</Button>

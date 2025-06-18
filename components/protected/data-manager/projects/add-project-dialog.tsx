@@ -82,7 +82,7 @@ export default function AddProjectDialog({
 		defaultValues: {
 			name: '',
 			client_id: '',
-			billing_model: 'hourly',
+			billing_model: undefined,
 			flat_fee: null,
 		},
 	});
@@ -118,7 +118,6 @@ export default function AddProjectDialog({
 			onProjectAdded();
 		} catch (error) {
 			console.error('Error creating project:', error);
-			// TODO: Add proper error handling/toast notification
 		} finally {
 			setIsSubmitting(false);
 		}

@@ -92,6 +92,7 @@ export default function SignUpForm({
 									<Input
 										placeholder="Enter your email"
 										type="email"
+										data-testid="signup-email-input"
 										{...field}
 									/>
 								</FormControl>
@@ -108,7 +109,12 @@ export default function SignUpForm({
 							<FormItem>
 								<FormLabel className="text-xs">Password</FormLabel>
 								<FormControl>
-									<Input type="password" placeholder="••••••••" {...field} />
+									<Input
+										type="password"
+										placeholder="••••••••"
+										data-testid="signup-password-input"
+										{...field}
+									/>
 								</FormControl>
 								<FormMessage />
 							</FormItem>
@@ -127,6 +133,7 @@ export default function SignUpForm({
 											id="privacy"
 											checked={field.value}
 											onCheckedChange={field.onChange}
+											data-testid="privacy-checkbox"
 										/>
 										<FormLabel
 											htmlFor="privacy"
@@ -156,7 +163,12 @@ export default function SignUpForm({
 					/>
 
 					{/* Submit */}
-					<Button disabled={isLoading} type="submit" className="w-full">
+					<Button
+						disabled={isLoading}
+						type="submit"
+						className="w-full"
+						data-testid="signup-button"
+					>
 						{isLoading ? (
 							<BeatLoader size={8} color="white" />
 						) : (

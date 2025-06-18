@@ -1,12 +1,23 @@
 import { ReactNode, Suspense } from 'react';
 import { NavigationTabs } from '@/components/protected/navigation-tabs';
 import AppFooter from '@/components/protected/app-footer';
+import { getUser } from '@/actions/auth';
+import { redirect } from 'next/navigation';
 
 interface ProtectedLayoutProps {
 	children: ReactNode;
 }
 
-export default function ProtectedLayout({ children }: ProtectedLayoutProps) {
+export default async function ProtectedLayout({
+	children,
+}: ProtectedLayoutProps) {
+	try {
+		await getUser();
+	} catch (error) {
+		// User is not authenticated, redirect to login
+		redirect('/login');
+	}
+
 	return (
 		<div className="min-h-screen flex flex-col bg-gray-50">
 			{/* Header with Navigation Tabs */}

@@ -155,7 +155,10 @@ export default function AddAllocationDialog({
 										disabled={loadingConsultants}
 									>
 										<FormControl>
-											<SelectTrigger className="w-full">
+											<SelectTrigger
+												className="w-full"
+												data-testid="consultant-select"
+											>
 												<SelectValue placeholder="Select consultant" />
 											</SelectTrigger>
 										</FormControl>
@@ -185,7 +188,10 @@ export default function AddAllocationDialog({
 										disabled={loadingProjects}
 									>
 										<FormControl>
-											<SelectTrigger className="w-full">
+											<SelectTrigger
+												className="w-full"
+												data-testid="project-select"
+											>
 												<SelectValue placeholder="Select project" />
 											</SelectTrigger>
 										</FormControl>
