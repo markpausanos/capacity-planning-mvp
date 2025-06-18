@@ -6,7 +6,6 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import Image from 'next/image';
 import { BeatLoader } from 'react-spinners';
 
 import { Button } from '@/components/ui/button';

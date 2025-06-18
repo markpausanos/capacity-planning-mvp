@@ -14,7 +14,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { useState } from 'react';
-import Image from 'next/image';
+
 import { BeatLoader } from 'react-spinners';
 import { resetPassword } from '@/actions/auth';
 import Link from 'next/link';

@@ -33,7 +33,6 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { CalendarIcon } from 'lucide-react';
 
 const addAllocationSchema = z
 	.object({
@@ -98,7 +97,7 @@ export default function AddAllocationDialog({
 			setLoadingConsultants(true);
 			const data = await getConsultants();
 			setConsultants(data.consultants);
-		} catch (error) {
+		} catch {
 			toast.error('Failed to load consultants');
 		} finally {
 			setLoadingConsultants(false);
@@ -110,7 +109,7 @@ export default function AddAllocationDialog({
 			setLoadingProjects(true);
 			const data = await getProjects();
 			setProjects(data.projects);
-		} catch (error) {
+		} catch {
 			toast.error('Failed to load projects');
 		} finally {
 			setLoadingProjects(false);

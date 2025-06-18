@@ -11,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { deleteConsultant } from '@/actions/consultants';
 import { Consultant } from '@/types/consultant';
-import { AlertTriangle, X } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 
 interface DeleteConsultantDialogProps {
 	open: boolean;

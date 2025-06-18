@@ -18,7 +18,6 @@ import { toast } from 'sonner';
 import { useState } from 'react';
 import Link from 'next/link';
 import { BeatLoader } from 'react-spinners';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 
 const loginSchema = z.object({
@@ -45,7 +44,6 @@ export default function LoginForm() {
 
 		try {
 			const response = await login(data);
-			console.log(response);
 
 			if (response.user) {
 				router.push('/dashboard');

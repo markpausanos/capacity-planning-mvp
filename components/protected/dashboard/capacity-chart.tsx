@@ -17,6 +17,23 @@ interface CapacityChartProps {
 	data: DashboardData;
 }
 
+interface TooltipProps {
+	active?: boolean;
+	payload?: Array<{
+		value: number;
+		payload: {
+			week: string;
+			utilization: number;
+		};
+	}>;
+	label?: string;
+}
+
+interface BarClickData {
+	week: string;
+	utilization: number;
+}
+
 // Color function based on utilization percentage
 function getUtilizationColor(utilization: number): string {
 	if (utilization <= 100) return '#22c55e'; // Green
@@ -25,47 +42,11 @@ function getUtilizationColor(utilization: number): string {
 }
 
 function CapacityChart({ data }: CapacityChartProps) {
-	// Error checking and data validation
-	if (!data || !data.consultants || data.consultants.length === 0) {
-		return (
-			<div className="w-full h-96 flex items-center justify-center text-muted-foreground">
-				<p>No consultant data available</p>
-			</div>
-		);
-	}
-
-	// Additional safety check
-	if (!Array.isArray(data.consultants)) {
-		console.error('Invalid consultants data:', data.consultants);
-		return (
-			<div className="w-full h-96 flex items-center justify-center text-muted-foreground">
-				<p>Invalid consultant data format</p>
-			</div>
-		);
-	}
-
-	// Memoize weeks array to prevent recreation
-	const weeks = useMemo(
-		() => [
-			'W1',
-			'W2',
-			'W3',
-			'W4',
-			'W5',
-			'W6',
-			'W7',
-			'W8',
-			'W9',
-			'W10',
-			'W11',
-			'W12',
-		],
-		[]
-	);
+	// Move all hooks to the top level
 
 	// Memoize chart data to use compiled utilization from weekly summary
 	const chartData = useMemo(() => {
-		if (!data.weeklySummary || !Array.isArray(data.weeklySummary)) {
+		if (!data?.weeklySummary || !Array.isArray(data.weeklySummary)) {
 			return [];
 		}
 
@@ -88,6 +69,68 @@ function CapacityChart({ data }: CapacityChartProps) {
 		});
 	}, [data.weeklySummary]);
 
+	// Memoize click handler to prevent recreation
+	const handleBarClick = useCallback(
+		(clickData: BarClickData, index: number, consultant: string) => {
+			console.log('Bar clicked:', {
+				week: clickData.week,
+				consultant,
+				utilization: clickData.utilization,
+				index,
+			});
+		},
+		[]
+	);
+
+	// Custom tooltip with error checking for compiled utilization
+	const CustomTooltip = useCallback(
+		({ active, payload, label }: TooltipProps) => {
+			if (active && payload && payload.length && payload[0]) {
+				const utilization =
+					typeof payload[0].value === 'number' && !isNaN(payload[0].value)
+						? payload[0].value
+						: 0;
+				const week = label || 'Unknown';
+
+				return (
+					<div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
+						<p className="font-medium text-sm text-gray-900 mb-2">{`Week: ${week}`}</p>
+						<div className="flex items-center justify-between gap-2">
+							<span className="text-sm">Overall Utilization:</span>
+							<span
+								className="text-sm font-medium"
+								style={{ color: getUtilizationColor(utilization) }}
+							>
+								{utilization}%
+							</span>
+						</div>
+					</div>
+				);
+			}
+			return null;
+		},
+		[]
+	);
+
+	// Error checking and data validation
+	if (!data || !data.consultants || data.consultants.length === 0) {
+		return (
+			<div className="w-full h-96 flex items-center justify-center text-muted-foreground">
+				<p>No consultant data available</p>
+			</div>
+		);
+	}
+
+	// Additional safety check
+	if (!Array.isArray(data.consultants)) {
+		console.error('Invalid consultants data:', data.consultants);
+		return (
+			<div className="w-full h-96 flex items-center justify-center text-muted-foreground">
+				<p>Invalid consultant data format</p>
+			</div>
+		);
+	}
+
 	// If no valid data after filtering, show empty state
 	if (chartData.length === 0) {
 		return (
@@ -96,46 +139,6 @@ function CapacityChart({ data }: CapacityChartProps) {
 			</div>
 		);
 	}
-
-	// Memoize click handler to prevent recreation
-	const handleBarClick = useCallback(
-		(data: any, index: number, consultant: string) => {
-			console.log('Bar clicked:', {
-				week: data.week,
-				consultant,
-				utilization: data[consultant],
-				index,
-			});
-		},
-		[]
-	);
-
-	// Custom tooltip with error checking for compiled utilization
-	const CustomTooltip = ({ active, payload, label }: any) => {
-		if (active && payload && payload.length && payload[0]) {
-			const utilization =
-				typeof payload[0].value === 'number' && !isNaN(payload[0].value)
-					? payload[0].value
-					: 0;
-			const week = label || 'Unknown';
-
-			return (
-				<div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
-					<p className="font-medium text-sm text-gray-900 mb-2">{`Week: ${week}`}</p>
-					<div className="flex items-center justify-between gap-2">
-						<span className="text-sm">Overall Utilization:</span>
-						<span
-							className="text-sm font-medium"
-							style={{ color: getUtilizationColor(utilization) }}
-						>
-							{utilization}%
-						</span>
-					</div>
-				</div>
-			);
-		}
-		return null;
-	};
 
 	return (
 		<div className="w-full" style={{ height: '400px' }}>
@@ -158,7 +161,9 @@ function CapacityChart({ data }: CapacityChartProps) {
 
 					<Bar
 						dataKey="utilization"
-						onClick={(data, index) => handleBarClick(data, index, 'overall')}
+						onClick={(clickData, index) =>
+							handleBarClick(clickData as BarClickData, index, 'overall')
+						}
 						style={{ cursor: 'pointer' }}
 					>
 						{chartData.map((entry, entryIndex) => {

@@ -113,7 +113,7 @@ export default function EditAllocationDialog({
 			setLoadingConsultants(true);
 			const data = await getConsultants();
 			setConsultants(data.consultants);
-		} catch (error) {
+		} catch {
 			toast.error('Failed to load consultants');
 		} finally {
 			setLoadingConsultants(false);
@@ -125,7 +125,7 @@ export default function EditAllocationDialog({
 			setLoadingProjects(true);
 			const data = await getProjects();
 			setProjects(data.projects);
-		} catch (error) {
+		} catch {
 			toast.error('Failed to load projects');
 		} finally {
 			setLoadingProjects(false);

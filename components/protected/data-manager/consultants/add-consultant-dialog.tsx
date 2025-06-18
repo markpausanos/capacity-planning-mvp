@@ -21,7 +21,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { createConsultant } from '@/actions/consultants';
-import { X } from 'lucide-react';
 
 const consultantSchema = z.object({
 	name: z.string().min(1, 'Name is required'),

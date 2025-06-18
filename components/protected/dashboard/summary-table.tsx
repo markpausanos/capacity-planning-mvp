@@ -2,20 +2,21 @@
 
 import { useMemo, memo } from 'react';
 import { DashboardData, WeeklyData } from '@/types/dashboard';
+import DataTable from '@/components/custom/data-table';
 import {
 	useReactTable,
 	getCoreRowModel,
 	ColumnDef,
 } from '@tanstack/react-table';
-import DataTable from '@/components/custom/data-table';
 
 interface SummaryTableProps {
 	data: DashboardData;
 	onExportCSV?: () => void;
 }
 
-// CSV export function - now exported for use in parent component
 export const exportWeeklySummaryToCSV = (data: WeeklyData[]) => {
+	if (!data || data.length === 0) return;
+
 	const headers = [
 		'Week',
 		'Capacity Hours',
@@ -26,41 +27,27 @@ export const exportWeeklySummaryToCSV = (data: WeeklyData[]) => {
 		'Profit $',
 	];
 
+	const csvData = data.map((week) => [
+		week.week || 'N/A',
+		week.capacityHours || 0,
+		week.scheduledHours || 0,
+		week.utilization || 0,
+		week.cost || 0,
+		week.revenue || 0,
+		week.profit || 0,
+	]);
+
 	const csvContent = [
 		headers.join(','),
-		...data.map((week) =>
-			[
-				week.week || 'N/A',
-				typeof week.capacityHours === 'number' && !isNaN(week.capacityHours)
-					? week.capacityHours
-					: 0,
-				typeof week.scheduledHours === 'number' && !isNaN(week.scheduledHours)
-					? week.scheduledHours
-					: 0,
-				typeof week.utilization === 'number' && !isNaN(week.utilization)
-					? week.utilization
-					: 0,
-				typeof week.cost === 'number' && !isNaN(week.cost) ? week.cost : 0,
-				typeof week.revenue === 'number' && !isNaN(week.revenue)
-					? week.revenue
-					: 0,
-				typeof week.profit === 'number' && !isNaN(week.profit)
-					? week.profit
-					: 0,
-			].join(',')
-		),
+		...csvData.map((row) => row.join(',')),
 	].join('\n');
 
 	const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
 	const link = document.createElement('a');
-
 	if (link.download !== undefined) {
 		const url = URL.createObjectURL(blob);
 		link.setAttribute('href', url);
-		link.setAttribute(
-			'download',
-			`weekly-summary-${new Date().toISOString().split('T')[0]}.csv`
-		);
+		link.setAttribute('download', 'weekly-summary.csv');
 		link.style.visibility = 'hidden';
 		document.body.appendChild(link);
 		link.click();
@@ -68,7 +55,7 @@ export const exportWeeklySummaryToCSV = (data: WeeklyData[]) => {
 	}
 };
 
-// Define columns for the summary table - memoized to prevent recreation
+// Memoized function to create columns
 const createSummaryColumns = (): ColumnDef<WeeklyData>[] => [
 	{
 		accessorKey: 'week',
@@ -190,54 +177,15 @@ function SummaryTable({ data }: SummaryTableProps) {
 	// Memoize columns to prevent recreation on every render
 	const columns = useMemo(() => createSummaryColumns(), []);
 
-	// Error checking
-	if (
-		!data ||
-		!data.weeklySummary ||
-		!Array.isArray(data.weeklySummary) ||
-		data.weeklySummary.length === 0
-	) {
-		// Return empty data for the table to handle
-		const emptyData: WeeklyData[] = [];
-
-		try {
-			const table = useReactTable<WeeklyData>({
-				data: emptyData,
-				columns,
-				getCoreRowModel: getCoreRowModel(),
-			});
-
-			return (
-				<div className="space-y-4">
-					<DataTable
-						table={table}
-						columns={columns}
-						isLoading={false}
-						isError={true}
-					/>
-					<div className="pt-2 border-t">
-						<p className="text-xs text-muted-foreground">
-							Profit column colors red when &lt; 0
-						</p>
-					</div>
-				</div>
-			);
-		} catch (error) {
-			console.error('Error creating empty table:', error);
-			return (
-				<div className="text-center py-8 text-muted-foreground">
-					<p>Unable to display summary table</p>
-				</div>
-			);
-		}
-	}
-
-	// Filter and validate the data
+	// Filter and validate the data - always return an array
 	const validWeeklyData = useMemo(() => {
+		if (!data?.weeklySummary || !Array.isArray(data.weeklySummary)) {
+			return [];
+		}
 		return data.weeklySummary.filter(
 			(week) => week && typeof week === 'object' && week.week
 		);
-	}, [data.weeklySummary]);
+	}, [data?.weeklySummary]);
 
 	// Create table at top level (hooks must be called at top level)
 	const table = useReactTable<WeeklyData>({
@@ -246,31 +194,24 @@ function SummaryTable({ data }: SummaryTableProps) {
 		getCoreRowModel: getCoreRowModel(),
 	});
 
-	try {
-		return (
-			<div className="space-y-4">
-				<DataTable
-					table={table}
-					columns={columns}
-					isLoading={false}
-					isError={false}
-				/>
-				<div className="pt-2 border-t">
-					<p className="text-xs text-muted-foreground">
-						Profit column colors red when &lt; 0
-					</p>
-				</div>
+	// Check if we have data to display
+	const hasData = validWeeklyData.length > 0;
+
+	return (
+		<div className="space-y-4">
+			<DataTable
+				table={table}
+				columns={columns}
+				isLoading={false}
+				isError={!hasData}
+			/>
+			<div className="pt-2 border-t">
+				<p className="text-xs text-muted-foreground">
+					Profit column colors red when &lt; 0
+				</p>
 			</div>
-		);
-	} catch (error) {
-		console.error('Error creating summary table:', error);
-		return (
-			<div className="text-center py-8 text-muted-foreground">
-				<p>Error displaying summary table</p>
-				<p className="text-sm">Check console for details</p>
-			</div>
-		);
-	}
+		</div>
+	);
 }
 
 export default memo(SummaryTable);

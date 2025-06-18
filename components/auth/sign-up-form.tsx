@@ -21,7 +21,6 @@ import { signup } from '@/actions/auth';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
 
 const signUpSchema = z.object({
 	email: z.string().email({ message: 'Invalid email address' }),

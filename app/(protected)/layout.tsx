@@ -13,7 +13,7 @@ export default async function ProtectedLayout({
 }: ProtectedLayoutProps) {
 	try {
 		await getUser();
-	} catch (error) {
+	} catch {
 		// User is not authenticated, redirect to login
 		redirect('/login');
 	}
