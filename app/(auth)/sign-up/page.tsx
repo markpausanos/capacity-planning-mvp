@@ -21,7 +21,8 @@ export default function SignUpPage() {
 						},
 					}}
 					fallbackRedirectUrl="/dashboard"
-					signInUrl="/sign-in"
+					signInUrl="/login"
+					routing="hash"
 				/>
 			</div>
 		</div>
