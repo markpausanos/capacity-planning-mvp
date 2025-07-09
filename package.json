@@ -14,7 +14,8 @@
 		"test:smoke": "npm run supabase:reset --silent && playwright test tests/e2e/smoke.spec.ts",
 		"supabase:start": "supabase start",
 		"supabase:stop": "supabase stop",
-		"supabase:reset": "supabase db reset"
+		"supabase:reset": "supabase db reset",
+		"postinstall": "prisma generate"
 	},
 	"dependencies": {
 		"@clerk/nextjs": "^6.24.0",
