@@ -5,178 +5,193 @@ import {
 	CreateProjectRequest,
 	UpdateProjectRequest,
 } from '@/types/project';
-import createClient from '@/utils/supabase/server';
-import { getUser } from './auth';
+import { prisma } from '@/lib/prisma';
+import { currentUser } from '@clerk/nextjs/server';
 
 export async function getProjects(): Promise<{ projects: Project[] }> {
-	const supabase = await createClient();
-	const { user } = await getUser();
+	const user = await currentUser();
 
 	if (!user) {
 		throw new Error('Unauthorized: User not authenticated');
 	}
 
-	const { data, error } = await supabase
-		.from('projects')
-		.select(
-			`
-      *,
-      clients (
-        name
-      )
-    `
-		)
-		.eq('user_id', user.id)
-		.order('created_at', { ascending: false });
+	const projects = await prisma.project.findMany({
+		where: {
+			clerkUserId: user.id,
+		},
+		include: {
+			client: {
+				select: {
+					name: true,
+				},
+			},
+		},
+		orderBy: {
+			createdAt: 'desc',
+		},
+	});
 
-	if (error) {
-		throw error;
-	}
+	// Transform the data to match the expected interface
+	const transformedProjects = projects.map((project) => ({
+		id: project.id,
+		client_id: project.clientId,
+		name: project.name,
+		billing_model: project.billingModel as 'flat' | 'hourly',
+		flat_fee: project.flatFee ? Number(project.flatFee) : null,
+		user_id: project.clerkUserId,
+		created_at: project.createdAt.toISOString(),
+		updated_at: project.updatedAt.toISOString(),
+		client_name: project.client?.name || 'Unknown Client',
+	}));
 
-	// Transform the data to include client_name
-	const projects =
-		data?.map((project) => ({
-			...project,
-			client_name: project.clients?.name || 'Unknown Client',
-		})) || [];
-
-	return { projects };
+	return { projects: transformedProjects };
 }
 
 export async function getProject(id: string): Promise<{ project: Project }> {
-	const supabase = await createClient();
-	const { user } = await getUser();
+	const user = await currentUser();
 
 	if (!user) {
 		throw new Error('Unauthorized: User not authenticated');
 	}
 
-	const { data, error } = await supabase
-		.from('projects')
-		.select(
-			`
-      *,
-      clients (
-        name
-      )
-    `
-		)
-		.eq('id', id)
-		.eq('user_id', user.id)
-		.single();
+	const project = await prisma.project.findUnique({
+		where: {
+			id: id,
+			clerkUserId: user.id,
+		},
+		include: {
+			client: {
+				select: {
+					name: true,
+				},
+			},
+		},
+	});
 
-	if (error) {
-		throw error;
+	if (!project) {
+		throw new Error('Project not found');
 	}
 
-	const project = {
-		...data,
-		client_name: data.clients?.name || 'Unknown Client',
+	// Transform the data to match the expected interface
+	const transformedProject = {
+		id: project.id,
+		client_id: project.clientId,
+		name: project.name,
+		billing_model: project.billingModel as 'flat' | 'hourly',
+		flat_fee: project.flatFee ? Number(project.flatFee) : null,
+		user_id: project.clerkUserId,
+		created_at: project.createdAt.toISOString(),
+		updated_at: project.updatedAt.toISOString(),
+		client_name: project.client?.name || 'Unknown Client',
 	};
 
-	return { project };
+	return { project: transformedProject };
 }
 
 export async function createProject(
-	project: CreateProjectRequest
+	projectData: CreateProjectRequest
 ): Promise<{ project: Project }> {
-	const supabase = await createClient();
-	const { user } = await getUser();
+	const user = await currentUser();
 
 	if (!user) {
 		throw new Error('Unauthorized: User not authenticated');
 	}
 
-	// Add user_id to the project data
-	const projectData = {
-		...project,
-		user_id: user.id,
+	const project = await prisma.project.create({
+		data: {
+			clientId: projectData.client_id,
+			name: projectData.name,
+			billingModel: projectData.billing_model,
+			flatFee: projectData.flat_fee || null,
+			clerkUserId: user.id,
+		},
+		include: {
+			client: {
+				select: {
+					name: true,
+				},
+			},
+		},
+	});
+
+	// Transform the data to match the expected interface
+	const transformedProject = {
+		id: project.id,
+		client_id: project.clientId,
+		name: project.name,
+		billing_model: project.billingModel as 'flat' | 'hourly',
+		flat_fee: project.flatFee ? Number(project.flatFee) : null,
+		user_id: project.clerkUserId,
+		created_at: project.createdAt.toISOString(),
+		updated_at: project.updatedAt.toISOString(),
+		client_name: project.client?.name || 'Unknown Client',
 	};
 
-	const { data, error } = await supabase
-		.from('projects')
-		.insert([projectData])
-		.select(
-			`
-      *,
-      clients (
-        name
-      )
-    `
-		)
-		.single();
-
-	if (error) {
-		throw error;
-	}
-
-	const newProject = {
-		...data,
-		client_name: data.clients?.name || 'Unknown Client',
-	};
-
-	return { project: newProject };
+	return { project: transformedProject };
 }
 
 export async function updateProject(
-	project: UpdateProjectRequest
+	projectData: UpdateProjectRequest
 ): Promise<{ project: Project }> {
-	const supabase = await createClient();
-	const { user } = await getUser();
+	const user = await currentUser();
 
 	if (!user) {
 		throw new Error('Unauthorized: User not authenticated');
 	}
 
-	const { id, ...updateData } = project;
+	const { id, ...updateData } = projectData;
 
-	const { data, error } = await supabase
-		.from('projects')
-		.update({
-			...updateData,
-			updated_at: new Date().toISOString(),
-		})
-		.eq('id', id)
-		.eq('user_id', user.id)
-		.select(
-			`
-      *,
-      clients (
-        name
-      )
-    `
-		)
-		.single();
+	// Build update data object, only including defined fields
+	const prismaUpdateData: any = {};
+	if (updateData.client_id !== undefined) prismaUpdateData.clientId = updateData.client_id;
+	if (updateData.name !== undefined) prismaUpdateData.name = updateData.name;
+	if (updateData.billing_model !== undefined) prismaUpdateData.billingModel = updateData.billing_model;
+	if (updateData.flat_fee !== undefined) prismaUpdateData.flatFee = updateData.flat_fee;
 
-	if (error) {
-		throw error;
-	}
+	const project = await prisma.project.update({
+		where: {
+			id: id,
+			clerkUserId: user.id,
+		},
+		data: prismaUpdateData,
+		include: {
+			client: {
+				select: {
+					name: true,
+				},
+			},
+		},
+	});
 
-	const updatedProject = {
-		...data,
-		client_name: data.clients?.name || 'Unknown Client',
+	// Transform the data to match the expected interface
+	const transformedProject = {
+		id: project.id,
+		client_id: project.clientId,
+		name: project.name,
+		billing_model: project.billingModel as 'flat' | 'hourly',
+		flat_fee: project.flatFee ? Number(project.flatFee) : null,
+		user_id: project.clerkUserId,
+		created_at: project.createdAt.toISOString(),
+		updated_at: project.updatedAt.toISOString(),
+		client_name: project.client?.name || 'Unknown Client',
 	};
 
-	return { project: updatedProject };
+	return { project: transformedProject };
 }
 
 export async function deleteProject(id: string): Promise<{ success: boolean }> {
-	const supabase = await createClient();
-	const { user } = await getUser();
+	const user = await currentUser();
 
 	if (!user) {
 		throw new Error('Unauthorized: User not authenticated');
 	}
 
-	const { error } = await supabase
-		.from('projects')
-		.delete()
-		.eq('id', id)
-		.eq('user_id', user.id);
-
-	if (error) {
-		throw error;
-	}
+	await prisma.project.delete({
+		where: {
+			id: id,
+			clerkUserId: user.id,
+		},
+	});
 
 	return { success: true };
 }

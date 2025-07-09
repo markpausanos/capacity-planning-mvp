@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { logout } from '@/actions/auth';
+import { useClerk } from '@clerk/nextjs';
 import { toast } from 'sonner';
 import { LogOut } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -16,10 +16,11 @@ const tabs = [
 export function NavigationTabs() {
 	const pathname = usePathname();
 	const router = useRouter();
+	const { signOut } = useClerk();
 
 	const handleLogout = async () => {
 		try {
-			await logout();
+			await signOut();
 			toast.success('Logged out successfully');
 			router.push('/login');
 		} catch (error) {

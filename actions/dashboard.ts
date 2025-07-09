@@ -1,14 +1,13 @@
 'use server';
 
-import createClient from '@/utils/supabase/server';
+import { prisma } from '@/lib/prisma';
 import {
 	DashboardData,
 	ConsultantWeeklyData,
 	WeeklyData,
 	BenchConsultant,
 } from '@/types/dashboard';
-import { revalidatePath } from 'next/cache';
-import { getUser } from './auth';
+import { currentUser } from '@clerk/nextjs/server';
 
 // Get Monday of current week
 function getWeekStart(date: Date): Date {
@@ -32,12 +31,13 @@ function getWeeksBetween(startDate: Date, endDate: Date): number {
 
 export async function getDashboardData(): Promise<DashboardData> {
 	try {
-		const supabase = await createClient();
-		const { user } = await getUser();
-
+		const user = await currentUser();
+		
 		if (!user) {
 			throw new Error('Unauthorized: User not authenticated');
 		}
+
+		console.log('user.id =', user.id, '| typeof =', typeof user.id);
 
 		// Calculate 12-week period starting from current week
 		const today = new Date();
@@ -50,75 +50,73 @@ export async function getDashboardData(): Promise<DashboardData> {
 			weeks.push(weekDate);
 		}
 
-		// Get all consultants with timeout - filtered by user
-		const consultantsPromise = supabase
-			.from('consultants')
-			.select('*')
-			.eq('user_id', user.id)
-			.order('name');
+		// Get all consultants - filtered by user
+		const consultants = await prisma.consultant.findMany({
+			where: {
+				clerkUserId: user.id,
+			},
+			orderBy: {
+				name: 'asc',
+			},
+		});
 
-		const timeoutPromise = new Promise((_, reject) =>
-			setTimeout(() => reject(new Error('Query timeout: consultants')), 10000)
-		);
+		// Get all allocations that overlap with our 12-week period - filtered by user
+		const periodStart = weeks[0];
+		const periodEnd = weeks[11];
 
-		const { data: consultants, error: consultantsError } = (await Promise.race([
-			consultantsPromise,
-			timeoutPromise,
-		])) as any;
-
-		if (consultantsError) {
-			console.error('Error fetching consultants:', consultantsError);
-			throw new Error('Failed to fetch consultants');
-		}
-
-		// Get all allocations that overlap with our 12-week period with timeout - filtered by user
-		const periodStart = weeks[0].toISOString().split('T')[0];
-		const periodEnd = weeks[11].toISOString().split('T')[0];
-
-		const allocationsPromise = supabase
-			.from('allocations')
-			.select(
-				`
-			*,
-			consultants!inner(name, cost_per_hour, bill_rate, capacity_hours_per_week),
-			projects!inner(
-				name,
-				billing_model,
-				flat_fee,
-				clients!inner(name)
-			)
-		`
-			)
-			.eq('user_id', user.id)
-			.or(`start_date.lte.${periodEnd},end_date.gte.${periodStart}`);
-
-		const allocationsTimeoutPromise = new Promise((_, reject) =>
-			setTimeout(() => reject(new Error('Query timeout: allocations')), 10000)
-		);
-
-		const { data: allocations, error: allocationsError } = (await Promise.race([
-			allocationsPromise,
-			allocationsTimeoutPromise,
-		])) as any;
-
-		if (allocationsError) {
-			console.error('Error fetching allocations:', allocationsError);
-			throw new Error('Failed to fetch allocations');
-		}
+		const allocations = await prisma.allocation.findMany({
+			where: {
+				clerkUserId: user.id,
+				OR: [
+					{
+						startDate: {
+							lte: periodEnd,
+						},
+					},
+					{
+						endDate: {
+							gte: periodStart,
+						},
+					},
+				],
+			},
+			include: {
+				consultant: {
+					select: {
+						name: true,
+						costPerHour: true,
+						billRate: true,
+						capacityHoursPerWeek: true,
+					},
+				},
+				project: {
+					select: {
+						name: true,
+						billingModel: true,
+						flatFee: true,
+						client: {
+							select: {
+								name: true,
+							},
+						},
+					},
+				},
+			},
+		});
 
 		// Process data for each consultant
 		const consultantData: ConsultantWeeklyData[] = consultants.map(
-			(consultant: any) => {
+			(consultant) => {
 				const weeklyData: WeeklyData[] = weeks.map((weekDate, index) => {
 					const weekEndDate = new Date(weekDate);
 					weekEndDate.setDate(weekDate.getDate() + 6);
 
 					// Find allocations for this consultant that overlap with this week
-					const weekAllocations = allocations.filter((allocation: any) => {
-						const allocationStart = new Date(allocation.start_date);
-						const allocationEnd = new Date(allocation.end_date);
+					const weekAllocations = allocations.filter((allocation) => {
+						const allocationStart = new Date(allocation.startDate);
+						const allocationEnd = new Date(allocation.endDate);
 						return (
-							allocation.consultant_id === consultant.id &&
+							allocation.consultantId === consultant.id &&
 							allocationStart <= weekEndDate &&
 							allocationEnd >= weekDate
 						);
@@ -129,28 +127,28 @@ export async function getDashboardData(): Promise<DashboardData> {
 					let cost = 0;
 					let revenue = 0;
 
-					weekAllocations.forEach((allocation: any) => {
-						scheduledHours += allocation.hours_per_week;
+					weekAllocations.forEach((allocation) => {
+						scheduledHours += allocation.hoursPerWeek;
 						cost +=
-							allocation.hours_per_week * allocation.consultants.cost_per_hour;
+							allocation.hoursPerWeek * Number(allocation.consultant.costPerHour);
 
 						// Calculate revenue based on billing model
-						if (allocation.projects.billing_model === 'hourly') {
+						if (allocation.project.billingModel === 'hourly') {
 							revenue +=
-								allocation.hours_per_week * allocation.consultants.bill_rate;
+								allocation.hoursPerWeek * Number(allocation.consultant.billRate);
 						} else if (
-							allocation.projects.billing_model === 'flat' &&
-							allocation.projects.flat_fee
+							allocation.project.billingModel === 'flat' &&
+							allocation.project.flatFee
 						) {
 							// For flat fee, divide the total fee by the number of weeks in the project
-							const projectStart = new Date(allocation.start_date);
-							const projectEnd = new Date(allocation.end_date);
+							const projectStart = new Date(allocation.startDate);
+							const projectEnd = new Date(allocation.endDate);
 							const projectWeeks = getWeeksBetween(projectStart, projectEnd);
-							revenue += allocation.projects.flat_fee / projectWeeks;
+							revenue += Number(allocation.project.flatFee) / projectWeeks;
 						}
 					});
 
-					const capacityHours = consultant.capacity_hours_per_week;
+					const capacityHours = consultant.capacityHoursPerWeek;
 					const utilization =
 						capacityHours > 0
 							? Math.round((scheduledHours / capacityHours) * 100)
@@ -212,15 +210,15 @@ export async function getDashboardData(): Promise<DashboardData> {
 
 		// Find bench consultants (those with no allocations in the 12-week period)
 		const allocatedConsultantIds = new Set(
-			allocations.map((allocation: any) => allocation.consultant_id)
+			allocations.map((allocation) => allocation.consultantId)
 		);
 
 		const benchConsultants: BenchConsultant[] = consultants
-			.filter((consultant: any) => !allocatedConsultantIds.has(consultant.id))
-			.map((consultant: any) => ({
+			.filter((consultant) => !allocatedConsultantIds.has(consultant.id))
+			.map((consultant) => ({
 				id: consultant.id,
 				name: consultant.name,
-				capacityHoursPerWeek: consultant.capacity_hours_per_week,
+				capacityHoursPerWeek: consultant.capacityHoursPerWeek,
 			}));
 
 		return {

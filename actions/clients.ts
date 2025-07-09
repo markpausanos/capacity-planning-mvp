@@ -5,128 +5,143 @@ import {
 	CreateClientRequest,
 	UpdateClientRequest,
 } from '@/types/client';
-import createClient from '@/utils/supabase/server';
-import { getUser } from './auth';
+import { prisma } from '@/lib/prisma';
+import { currentUser } from '@clerk/nextjs/server';
 
 export async function getClients(): Promise<{ clients: Client[] }> {
-	const supabase = await createClient();
-	const { user } = await getUser();
+	const user = await currentUser();
 
 	if (!user) {
 		throw new Error('Unauthorized: User not authenticated');
 	}
 
-	const { data, error } = await supabase
-		.from('clients')
-		.select('*')
-		.eq('user_id', user.id)
-		.order('created_at', { ascending: false });
+	const clients = await prisma.client.findMany({
+		where: {
+			clerkUserId: user.id,
+		},
+		orderBy: {
+			createdAt: 'desc',
+		},
+	});
 
-	if (error) {
-		throw error;
-	}
+	// Transform the data to match the expected interface
+	const transformedClients = clients.map((client) => ({
+		id: client.id,
+		name: client.name,
+		user_id: client.clerkUserId,
+		created_at: client.createdAt.toISOString(),
+		updated_at: client.updatedAt.toISOString(),
+	}));
 
-	return { clients: data || [] };
+	return { clients: transformedClients };
 }
 
 export async function getClient(id: string): Promise<{ client: Client }> {
-	const supabase = await createClient();
-	const { user } = await getUser();
+	const user = await currentUser();
 
 	if (!user) {
 		throw new Error('Unauthorized: User not authenticated');
 	}
 
-	const { data, error } = await supabase
-		.from('clients')
-		.select('*')
-		.eq('id', id)
-		.eq('user_id', user.id)
-		.single();
+	const client = await prisma.client.findUnique({
+		where: {
+			id: id,
+			clerkUserId: user.id,
+		},
+	});
 
-	if (error) {
-		throw error;
+	if (!client) {
+		throw new Error('Client not found');
 	}
 
-	return { client: data };
+	// Transform the data to match the expected interface
+	const transformedClient = {
+		id: client.id,
+		name: client.name,
+		user_id: client.clerkUserId,
+		created_at: client.createdAt.toISOString(),
+		updated_at: client.updatedAt.toISOString(),
+	};
+
+	return { client: transformedClient };
 }
 
 export async function createProjectClient(
-	client: CreateClientRequest
+	clientData: CreateClientRequest
 ): Promise<{ client: Client }> {
-	const supabase = await createClient();
-	const { user } = await getUser();
+	const user = await currentUser();
 
 	if (!user) {
 		throw new Error('Unauthorized: User not authenticated');
 	}
 
-	// Add user_id to the client data
-	const clientData = {
-		...client,
-		user_id: user.id,
+	const client = await prisma.client.create({
+		data: {
+			name: clientData.name,
+			clerkUserId: user.id,
+		},
+	});
+
+	// Transform the data to match the expected interface
+	const transformedClient = {
+		id: client.id,
+		name: client.name,
+		user_id: client.clerkUserId,
+		created_at: client.createdAt.toISOString(),
+		updated_at: client.updatedAt.toISOString(),
 	};
 
-	const { data, error } = await supabase
-		.from('clients')
-		.insert([clientData])
-		.select()
-		.single();
-
-	if (error) {
-		throw error;
-	}
-
-	return { client: data };
+	return { client: transformedClient };
 }
 
 export async function updateClient(
-	client: UpdateClientRequest
+	clientData: UpdateClientRequest
 ): Promise<{ client: Client }> {
-	const supabase = await createClient();
-	const { user } = await getUser();
+	const user = await currentUser();
 
 	if (!user) {
 		throw new Error('Unauthorized: User not authenticated');
 	}
 
-	const { id, ...updateData } = client;
+	const { id, ...updateData } = clientData;
 
-	const { data, error } = await supabase
-		.from('clients')
-		.update({
-			...updateData,
-			updated_at: new Date().toISOString(),
-		})
-		.eq('id', id)
-		.eq('user_id', user.id)
-		.select()
-		.single();
+	// Build update data object, only including defined fields
+	const prismaUpdateData: any = {};
+	if (updateData.name !== undefined) prismaUpdateData.name = updateData.name;
 
-	if (error) {
-		throw error;
-	}
+	const client = await prisma.client.update({
+		where: {
+			id: id,
+			clerkUserId: user.id,
+		},
+		data: prismaUpdateData,
+	});
 
-	return { client: data };
+	// Transform the data to match the expected interface
+	const transformedClient = {
+		id: client.id,
+		name: client.name,
+		user_id: client.clerkUserId,
+		created_at: client.createdAt.toISOString(),
+		updated_at: client.updatedAt.toISOString(),
+	};
+
+	return { client: transformedClient };
 }
 
 export async function deleteClient(id: string): Promise<{ success: boolean }> {
-	const supabase = await createClient();
-	const { user } = await getUser();
+	const user = await currentUser();
 
 	if (!user) {
 		throw new Error('Unauthorized: User not authenticated');
 	}
 
-	const { error } = await supabase
-		.from('clients')
-		.delete()
-		.eq('id', id)
-		.eq('user_id', user.id);
-
-	if (error) {
-		throw error;
-	}
+	await prisma.client.delete({
+		where: {
+			id: id,
+			clerkUserId: user.id,
+		},
+	});
 
 	return { success: true };
 }

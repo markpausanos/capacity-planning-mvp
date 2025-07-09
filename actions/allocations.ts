@@ -1,57 +1,71 @@
 'use server';
 
-import createClient from '@/utils/supabase/server';
+import { prisma } from '@/lib/prisma';
 import {
 	CreateAllocationData,
 	UpdateAllocationData,
 	Allocation,
 } from '@/types/allocation';
 import { revalidatePath } from 'next/cache';
-import { getUser } from './auth';
+import { currentUser } from '@clerk/nextjs/server';
+
 
 export async function getAllocations(): Promise<Allocation[]> {
-	const supabase = await createClient();
-	const { user } = await getUser();
+	const user = await currentUser();
 
 	if (!user) {
 		throw new Error('Unauthorized: User not authenticated');
 	}
 
-	const { data, error } = await supabase
-		.from('allocations')
-		.select(
-			`
-			*,
-			consultants!inner(name, capacity_hours_per_week),
-			projects!inner(
-				name,
-				clients!inner(name)
-			)
-		`
-		)
-		.eq('user_id', user.id)
-		.order('start_date', { ascending: false });
+	const allocations = await prisma.allocation.findMany({
+		where: {
+			clerkUserId: user.id,
+		},
+		include: {
+			consultant: {
+				select: {
+					name: true,
+					capacityHoursPerWeek: true,
+				},
+			},
+			project: {
+				select: {
+					name: true,
+					client: {
+						select: {
+							name: true,
+						},
+					},
+				},
+			},
+		},
+		orderBy: {
+			startDate: 'desc',
+		},
+	});
 
-	if (error) {
-		console.error('Error fetching allocations:', error);
-		throw new Error('Failed to fetch allocations');
-	}
-
-	// Transform the data to flatten the nested structure
-	return data.map((allocation: any) => ({
-		...allocation,
-		consultant_name: allocation.consultants.name,
-		consultant_capacity: allocation.consultants.capacity_hours_per_week,
-		project_name: allocation.projects.name,
-		client_name: allocation.projects.clients.name,
+	// Transform the data to match the expected interface
+	return allocations.map((allocation): Allocation => ({
+		id: allocation.id,
+		consultant_id: allocation.consultantId,
+		project_id: allocation.projectId,
+		start_date: allocation.startDate.toISOString().split('T')[0], // Convert Date to string
+		end_date: allocation.endDate.toISOString().split('T')[0], // Convert Date to string
+		hours_per_week: allocation.hoursPerWeek,
+		user_id: allocation.clerkUserId,
+		created_at: allocation.createdAt.toISOString(),
+		updated_at: allocation.updatedAt.toISOString(),
+		consultant_name: allocation.consultant.name,
+		consultant_capacity: allocation.consultant.capacityHoursPerWeek,
+		project_name: allocation.project.name,
+		client_name: allocation.project.client.name,
 	}));
 }
 
 export async function createAllocation(
 	data: CreateAllocationData
 ): Promise<void> {
-	const supabase = await createClient();
-	const { user } = await getUser();
+	const user = await currentUser();
 
 	if (!user) {
 		throw new Error('Unauthorized: User not authenticated');
@@ -70,18 +84,16 @@ export async function createAllocation(
 		throw new Error('Hours per week must be greater than 0');
 	}
 
-	// Add user_id to the data
-	const allocationData = {
-		...data,
-		user_id: user.id,
-	};
-
-	const { error } = await supabase.from('allocations').insert([allocationData]);
-
-	if (error) {
-		console.error('Error creating allocation:', error);
-		throw new Error('Failed to create allocation');
-	}
+	await prisma.allocation.create({
+		data: {
+			consultantId: data.consultant_id,
+			projectId: data.project_id,
+			startDate: new Date(data.start_date),
+			endDate: new Date(data.end_date),
+			hoursPerWeek: data.hours_per_week,
+			clerkUserId: user.id,
+		},
+	});
 
 	revalidatePath('/data-manager/allocations');
 }
@@ -90,8 +102,7 @@ export async function updateAllocation(
 	id: string,
 	data: UpdateAllocationData
 ): Promise<void> {
-	const supabase = await createClient();
-	const { user } = await getUser();
+	const user = await currentUser();
 
 	if (!user) {
 		throw new Error('Unauthorized: User not authenticated');
@@ -112,38 +123,38 @@ export async function updateAllocation(
 		throw new Error('Hours per week must be greater than 0');
 	}
 
-	const { error } = await supabase
-		.from('allocations')
-		.update(data)
-		.eq('id', id)
-		.eq('user_id', user.id);
+	// Build update data object, only including defined fields
+	const updateData: any = {};
+	if (data.consultant_id !== undefined) updateData.consultantId = data.consultant_id;
+	if (data.project_id !== undefined) updateData.projectId = data.project_id;
+	if (data.start_date !== undefined) updateData.startDate = new Date(data.start_date);
+	if (data.end_date !== undefined) updateData.endDate = new Date(data.end_date);
+	if (data.hours_per_week !== undefined) updateData.hoursPerWeek = data.hours_per_week;
 
-	if (error) {
-		console.error('Error updating allocation:', error);
-		throw new Error('Failed to update allocation');
-	}
+	await prisma.allocation.update({
+		where: {
+			id: id,
+			clerkUserId: user.id, // Ensure user can only update their own allocations
+		},
+		data: updateData,
+	});
 
 	revalidatePath('/data-manager/allocations');
 }
 
 export async function deleteAllocation(id: string): Promise<void> {
-	const supabase = await createClient();
-	const { user } = await getUser();
+	const user = await currentUser();
 
 	if (!user) {
 		throw new Error('Unauthorized: User not authenticated');
 	}
 
-	const { error } = await supabase
-		.from('allocations')
-		.delete()
-		.eq('id', id)
-		.eq('user_id', user.id);
-
-	if (error) {
-		console.error('Error deleting allocation:', error);
-		throw new Error('Failed to delete allocation');
-	}
+	await prisma.allocation.delete({
+		where: {
+			id: id,
+			clerkUserId: user.id, // Ensure user can only delete their own allocations
+		},
+	});
 
 	revalidatePath('/data-manager/allocations');
 }

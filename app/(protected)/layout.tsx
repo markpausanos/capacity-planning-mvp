@@ -1,8 +1,8 @@
 import { ReactNode, Suspense } from 'react';
 import { NavigationTabs } from '@/components/protected/navigation-tabs';
 import AppFooter from '@/components/protected/app-footer';
-import { getUser } from '@/actions/auth';
 import { redirect } from 'next/navigation';
+import { currentUser } from '@clerk/nextjs/server';
 
 interface ProtectedLayoutProps {
 	children: ReactNode;
@@ -12,9 +12,11 @@ export default async function ProtectedLayout({
 	children,
 }: ProtectedLayoutProps) {
 	try {
-		await getUser();
+		const user = await currentUser();
+		if (!user) {
+			redirect('/login');
+		}
 	} catch {
-		// User is not authenticated, redirect to login
 		redirect('/login');
 	}
 

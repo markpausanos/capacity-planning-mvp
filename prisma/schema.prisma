@@ -1,0 +1,88 @@
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Consultant {
+  id                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                   String
+  costPerHour           Decimal  @default(0) @map("cost_per_hour") @db.Decimal(10, 2)
+  billRate              Decimal  @map("bill_rate") @db.Decimal(10, 2)
+  capacityHoursPerWeek  Int      @map("capacity_hours_per_week")
+  clerkUserId           String   @map("clerk_user_id") @db.Text
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  allocations           Allocation[]
+
+  @@map("consultants")
+  @@index([clerkUserId])
+}
+
+model Client {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String
+  clerkUserId String   @map("clerk_user_id") @db.Text
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  projects    Project[]
+
+  @@map("clients")
+  @@index([clerkUserId])
+}
+
+model Project {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clientId     String       @map("client_id") @db.Uuid
+  name         String
+  billingModel BillingModel @map("billing_model")
+  flatFee      Decimal?     @map("flat_fee") @db.Decimal(10, 2)
+  clerkUserId  String       @map("clerk_user_id") @db.Text
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  client       Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  allocations  Allocation[]
+
+  @@map("projects")
+  @@index([clientId], map: "idx_projects_client_id")
+  @@index([clerkUserId])
+}
+
+model Allocation {
+  id            String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  consultantId  String     @map("consultant_id") @db.Uuid
+  projectId     String     @map("project_id") @db.Uuid
+  startDate     DateTime   @map("start_date") @db.Date
+  endDate       DateTime   @map("end_date") @db.Date
+  hoursPerWeek  Int        @map("hours_per_week")
+  clerkUserId   String     @map("clerk_user_id") @db.Text
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  consultant    Consultant @relation(fields: [consultantId], references: [id], onDelete: Cascade)
+  project       Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("allocations")
+  @@index([consultantId], map: "idx_allocations_consultant_id")
+  @@index([projectId], map: "idx_allocations_project_id")
+  @@index([startDate, endDate], map: "idx_allocations_dates")
+  @@index([clerkUserId])
+}
+
+enum BillingModel {
+  flat
+  hourly
+
+  @@map("billing_model")
+} 
